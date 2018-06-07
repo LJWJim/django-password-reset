@@ -98,11 +98,19 @@ class PasswordRecoveryForm(forms.Form):
 
 class PasswordResetForm(forms.Form):
     password1 = forms.CharField(
+		required=True,
+		max_length=64,
+        min_length=8,
         label=_('New password'),
         widget=forms.PasswordInput,
+		
+		##########
     )
     password2 = forms.CharField(
-        label=_('New password (confirm)'),
+		required=True,
+		max_length=64,
+        min_length=8,
+        label=_('Hi,New password (confirm)'),
         widget=forms.PasswordInput,
     )
 
