@@ -18,6 +18,7 @@ from django.views.decorators.debug import sensitive_post_parameters
 from .forms import PasswordRecoveryForm, PasswordResetForm
 from .signals import user_recovers_password
 
+from django.core.cache import cache
 
 class SaltMixin(object):
     salt = 'password_recovery'
@@ -84,7 +85,7 @@ class Recover(SaltMixin, generic.FormView):
             'site': self.get_site(),
             'user': self.user,
             'username': self.user.get_username(),
-            'token': signing.dumps(self.user.pk, salt=self.salt),
+            'token': signing.dumps(self.user.pk, salt=self.salt),#邮件的重置密码url
             'secure': self.request.is_secure(),
         }
         body = loader.render_to_string(self.email_template_name,
@@ -93,6 +94,7 @@ class Recover(SaltMixin, generic.FormView):
                                           context).strip()
         send_mail(subject, body, settings.DEFAULT_FROM_EMAIL,
                   [self.user.email])
+        cache.set(self.user.get_username(), '1', timeout = 60*30)  #设置修改密码标记缓存
 
     def form_valid(self, form):
         self.user = form.cleaned_data['user']
@@ -106,6 +108,7 @@ class Recover(SaltMixin, generic.FormView):
             email = self.user.username
         else:
             email = self.user.email
+        #form.set_status_by_user()
         self.mail_signature = signing.dumps(email, salt=self.url_salt)
         return super(Recover, self).form_valid(form)
 
@@ -115,7 +118,7 @@ recover = Recover.as_view()
 
 class Reset(SaltMixin, generic.FormView):
     form_class = PasswordResetForm
-    token_expires = None
+    token_expires = 60 * 30
     template_name = 'password_reset/reset.html'
     success_url = reverse_lazy('password_reset_done')
 
@@ -132,15 +135,17 @@ class Reset(SaltMixin, generic.FormView):
         self.args = args
         self.kwargs = kwargs
         self.user = None
-
         try:
-            pk = signing.loads(kwargs['token'],
+            pk = signing.loads(kwargs['token'],                 #验证链接是否失效
                                max_age=self.get_token_expires(),
                                salt=self.salt)
         except signing.BadSignature:
             return self.invalid()
 
         self.user = get_object_or_404(get_user_model(), pk=pk)
+        status = cache.get(self.user)
+        if status is None:  # 验证缓存是否存在
+            return self.invalid()
         return super(Reset, self).dispatch(request, *args, **kwargs)
 
     def invalid(self):
@@ -161,12 +166,14 @@ class Reset(SaltMixin, generic.FormView):
         return ctx
 
     def form_valid(self, form):
+
         form.save()
         user_recovers_password.send(
             sender=get_user_model(),
             user=form.user,
             request=self.request
         )
+        cache.delete(self.user)
         return redirect(self.get_success_url())
 
 

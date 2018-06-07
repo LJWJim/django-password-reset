@@ -50,6 +50,7 @@ class PasswordRecoveryForm(forms.Form):
                                              'RECOVER_ONLY_ACTIVE_USERS',
                                              False)
 
+
         if recovery_only_active_users and not user_is_active:
             raise forms.ValidationError(_("Sorry, inactive users can't "
                                         "recover their password."))
@@ -92,25 +93,20 @@ class PasswordRecoveryForm(forms.Form):
                                         code='not_found')
         except User.MultipleObjectsReturned:
             raise forms.ValidationError(_("Unable to find user."))
-
         return user
 
 
 class PasswordResetForm(forms.Form):
     password1 = forms.CharField(
-		required=True,
-		max_length=64,
+        max_length=64,
         min_length=8,
         label=_('New password'),
         widget=forms.PasswordInput,
-		
-		##########
     )
     password2 = forms.CharField(
-		required=True,
-		max_length=64,
+        max_length=64,
         min_length=8,
-        label=_('Hi,New password (confirm)'),
+        label=_('New password (confirm)'),
         widget=forms.PasswordInput,
     )
 
